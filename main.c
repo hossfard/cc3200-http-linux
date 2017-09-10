@@ -821,17 +821,23 @@ long apMode(char *ssid){
 
     Report("\n\rDevice is in AP Mode [%s] \n\r", ucAPSSID);
 
-    //Cycle the  LED lighs 3 times to Indicate AP Mode
+    // Cycle the LED lighs 3 times to Indicate AP Mode
     int leds[] = {MCU_RED_LED_GPIO, MCU_ORANGE_LED_GPIO, MCU_GREEN_LED_GPIO};
     for (int iCount=0; iCount<3; iCount++){
+      // Toggle direction of the lights
+      int const offset = (iCount % 2) * 2;
+      int const sgn = (offset > 0) ? -1 : 1;
+      // Turn the LEDs on
       for (int i=0; i<3; ++i){
-        GPIO_IF_LedOn(leds[i]);
+        GPIO_IF_LedOn(leds[offset + sgn*i]);
         MAP_UtilsDelay(1000000);
       }
+      // Toggle the LEDs off
       for (int i=0; i<3; ++i){
-        GPIO_IF_LedOff(leds[i]);
+        GPIO_IF_LedOff(leds[offset + sgn*i]);
         MAP_UtilsDelay(1000000);
       }
+      MAP_UtilsDelay(1000000);
     }
 
     Report("\n\rConnect a device \n\r");
