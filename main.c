@@ -2,46 +2,7 @@
  *
  * This is heavily based off the `CC3200SDK/example/tcp_server` example
  *
- * Example usage:
- *
- *
- * Examples: Suppose that the CC3200 has an IP address of 192.168.1.1
- * and running server on 5001.
- *
- * - Toggle LED lights
- *
- *   Generate a POST request to `led` and post LED light as JSON object. For example:
- *     Turn red LED light off: {"red": "off"}
- *     Turn green and orange LED lights on: {"green": "on", "red": "on"}
- *
- *   With can do this with curl:
- *    `curl -H "Content-Type application/json" -X post -d "{\"orange\": \"on\"}" 192.168.1.1:5001/led`
- *
- *   which will generate the full request
- *   ```
- *      POST /led HTTP/1.1
- *      Host: 192.168.1.1:5001
- *      User-Agent: curl/7.55.0
- *      Accept: *\/\*
- *      Content-Type: application/json
- *      Content-Length: 15
- *
- *      {"green": "on"}
- *   ```
- *
- * - Get LED status in JSON format: Send get request to 192.168.1.1:5001/led
- *
- *   Using curl:
- *   `curl <IPADDRESS>:PORT/led`
- *
- *   which would return a JSON object with the LED light status:
- *
- *   `{"orange": "on","green": "on","red": "on"}`
- *
- *   Note: headers have been left out for brevity
- *
  */
-
 
 /*
  *
