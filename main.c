@@ -630,8 +630,8 @@ int httpServer(unsigned short port){
     if (iStatus <= 0){
       /* ASSERT_ON_ERROR(RECV_ERROR); */
       Report("Receive Error");
-      char packetData[] = "HTTP/1.1 500 OK\r\nContent-Length: 6\r\nContent-Type: "
-        "text/plain\r\nConnection: Closed\r\n\r\nfailed";
+      char packetData[] = "HTTP/1.1 500 OK\r\nContent-Length: 25\r\nContent-Type: "
+        "text/plain\r\nConnection: Closed\r\n\r\n{\"error\":\"receive error\"}";
       iStatus = sl_Send(newSocketId, packetData, strlen(packetData), 0);
       if (iStatus < 0){
         // error

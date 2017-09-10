@@ -8,8 +8,9 @@
 #include "HttpRequest.h"
 
 int ledPathHandler(char const* req, HttpHeader *header, int socketId);
-int ledGetHandler(char const* req, HttpHeader *header, int socketId);
 int ledPostHandler(char const* req, HttpHeader *header, int socketId);
+int ledGetHandler(char const* req, HttpHeader *header, int socketId);
+
 
 int routerHandleRequest(char const* req, int socketId){
   // Parse Request
@@ -22,16 +23,19 @@ int routerHandleRequest(char const* req, int socketId){
     sl_Send(socketId, resp, strlen(resp), 0);
   }
   else{
-
     // LED status
     if (strcmp(header->path, "/led") == 0){
       return ledPathHandler(req, header, socketId);
     }
-
+    else{
+      char *resp = genJsonResponse("404 Not Found", "{\"error\":\"Invalid path\"}");
+      sl_Send(socketId, resp, strlen(resp), 0);
+      free(resp);
+    }
   }
-
   return -1;
 }
+
 
 /* Return value of key in JSON object
  *
@@ -85,18 +89,26 @@ char* jsonValue(char const* key, char const* jsonStr, jsmntok_t *tokens, int tok
 int ledPathHandler(char const* req, HttpHeader *header, int socketId){
   int ret = 0;
 
-  /* Toggle LED lights */
-  if (header->method == HTTP_REQ_POST){
-    ret = ledPostHandler(req, header, socketId);
-  }
-  else if (header->method == HTTP_REQ_GET){
-    ret = ledGetHandler(req, header, socketId);
+  /* Content-length is required */
+  if (header->contentLength < 1){
+    char *resp = genJsonResponse("411 Length Required", "{}");
+    ret = sl_Send(socketId, resp, strlen(resp), 0);
+    free(resp);
   }
   else{
-    // invalid request
-    char *resp = genJsonResponse("405 Method Not Allowed", "");
-    sl_Send(socketId, resp, strlen(resp), 0);
-    free(resp);
+    /* Toggle LED lights */
+    if (header->method == HTTP_REQ_POST){
+      ret = ledPostHandler(req, header, socketId);
+    }
+    else if (header->method == HTTP_REQ_GET){
+      ret = ledGetHandler(req, header, socketId);
+    }
+    else{
+      // invalid request
+      char *resp = genJsonResponse("405 Method Not Allowed", "{}");
+      ret = sl_Send(socketId, resp, strlen(resp), 0);
+      free(resp);
+    }
   }
 
   freeHttpHeader(header);
