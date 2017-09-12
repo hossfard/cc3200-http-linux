@@ -15,25 +15,28 @@ int ledGetHandler(char const* req, HttpHeader *header, int socketId);
 int routerHandleRequest(char const* req, int socketId){
   // Parse Request
   HttpHeader* header = parseHeader(req);
+  int ret = 0;
 
   if (header->path == NULL){
     freeHttpHeader(header);
-    char *resp = genJsonResponse("400 Bad Request", "{\"error\": \"Invalid path\"}");
+    char *resp = genJsonResponse("400 Bad Request", "{\"error\":\"Invalid path\"}");
     free(resp);
-    sl_Send(socketId, resp, strlen(resp), 0);
+    ret = sl_Send(socketId, resp, strlen(resp), 0);
   }
   else{
     // LED status
     if (strcmp(header->path, "/led") == 0){
-      return ledPathHandler(req, header, socketId);
+      ret = ledPathHandler(req, header, socketId);
     }
     else{
       char *resp = genJsonResponse("404 Not Found", "{\"error\":\"Invalid path\"}");
-      sl_Send(socketId, resp, strlen(resp), 0);
+      ret = sl_Send(socketId, resp, strlen(resp), 0);
       free(resp);
     }
   }
-  return -1;
+
+  freeHttpHeader(header);
+  return ret;
 }
 
 
@@ -89,29 +92,28 @@ char* jsonValue(char const* key, char const* jsonStr, jsmntok_t *tokens, int tok
 int ledPathHandler(char const* req, HttpHeader *header, int socketId){
   int ret = 0;
 
+  /* Toggle LED lights */
+  if (header->method == HTTP_REQ_POST){
   /* Content-length is required */
-  if (header->contentLength < 1){
-    char *resp = genJsonResponse("411 Length Required", "{}");
-    ret = sl_Send(socketId, resp, strlen(resp), 0);
-    free(resp);
-  }
-  else{
-    /* Toggle LED lights */
-    if (header->method == HTTP_REQ_POST){
-      ret = ledPostHandler(req, header, socketId);
-    }
-    else if (header->method == HTTP_REQ_GET){
-      ret = ledGetHandler(req, header, socketId);
-    }
-    else{
-      // invalid request
-      char *resp = genJsonResponse("405 Method Not Allowed", "{}");
+    if (header->contentLength < 1){
+      char *resp = genJsonResponse("411 Length Required", "{}");
       ret = sl_Send(socketId, resp, strlen(resp), 0);
       free(resp);
     }
+    else{
+      ret = ledPostHandler(req, header, socketId);
+    }
+  }
+  else if (header->method == HTTP_REQ_GET){
+    ret = ledGetHandler(req, header, socketId);
+  }
+  else{
+    // invalid request
+    char *resp = genJsonResponse("405 Method Not Allowed", "{}");
+    ret = sl_Send(socketId, resp, strlen(resp), 0);
+    free(resp);
   }
 
-  freeHttpHeader(header);
   return ret;
 };
 
@@ -142,7 +144,7 @@ int ledPostHandler(char const* req, HttpHeader *header, int socketId){
     jsmn_parser parser;
     jsmn_init(&parser);
     jsmntok_t tokens[MAX_TOKENS];
-    char const* bodyPtr = req  + header->bodyStart;;
+    char const* bodyPtr = req + header->bodyStart;;
     int bodyLength = strlen(req) - header->bodyStart;
     int tokenCount = jsmn_parse(&parser, bodyPtr, bodyLength, tokens, MAX_TOKENS);
 
@@ -190,22 +192,22 @@ int ledGetHandler(char const* req, HttpHeader *header, int socketId){
   /* return status of led lights */
   char data[200];
   if (GPIO_IF_LedStatus(MCU_ORANGE_LED_GPIO) == 0){
-    strcpy(data, "{\"orange\": \"off\",");
+    strcpy(data, "{\"orange\":\"off\",");
   }
   else{
-    strcpy(data, "{\"orange\": \"on\",");
+    strcpy(data, "{\"orange\":\"on\",");
   }
   if (GPIO_IF_LedStatus(MCU_GREEN_LED_GPIO) == 0){
-    strcat(data, "\"green\": \"off\",");
+    strcat(data, "\"green\":\"off\",");
   }
   else{
-    strcat(data, "\"green\": \"on\",");
+    strcat(data, "\"green\":\"on\",");
   }
   if (GPIO_IF_LedStatus(MCU_RED_LED_GPIO) == 0){
-    strcat(data, "\"red\": \"off\"}");
+    strcat(data, "\"red\":\"off\"}");
   }
   else{
-    strcat(data, "\"red\": \"on\"}");
+    strcat(data, "\"red\":\"on\"}");
   }
   char* jsonResp = genJsonResponse("200 OK", data);
   int iStatus = sl_Send(socketId, jsonResp, strlen(jsonResp), 0);
