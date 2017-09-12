@@ -512,12 +512,12 @@ long configureSimpleLinkToDefaultState(){
 int httpServer(unsigned short port){
   SlSockAddrIn_t sLocalAddr;
 
-  //filling the TCP server socket address
+  // filling the TCP server socket address
   sLocalAddr.sin_family = SL_AF_INET;
   sLocalAddr.sin_port = sl_Htons(port);
   sLocalAddr.sin_addr.s_addr = 0;
 
-  // creating a TCP socket
+  // Create a TCP socket
   int socketId = sl_Socket(SL_AF_INET, SL_SOCK_STREAM, 0);
   if( socketId < 0 ){
     // error
@@ -525,10 +525,10 @@ int httpServer(unsigned short port){
   }
 
   int iAddrSize = sizeof(SlSockAddrIn_t);
+
   // Bind the TCP socket to the TCP server address
   int iStatus = sl_Bind(socketId, (SlSockAddr_t*)&sLocalAddr, iAddrSize);
   if (iStatus < 0){
-    // error
     sl_Close(socketId);
     ASSERT_ON_ERROR(BIND_ERROR);
   }
@@ -549,21 +549,19 @@ int httpServer(unsigned short port){
     ASSERT_ON_ERROR(SOCKET_OPT_ERROR);
   }
 
-  int newSocketId = SL_EAGAIN;
+  int newSocketId = SL_EAGAIN;  // try again
 
   /* Handle requests */
   while (true){
     newSocketId = SL_EAGAIN;
 
-    // Waiting for an incoming TCP connection
     SlSockAddrIn_t sAddr;
+    // Waiting for an incoming TCP connection
     while (newSocketId < 0){
-
       // Accept a connection form a TCP client, if there is any
-      // otherwise returns SL_EAGAIN
+      // otherwise returns SL_EAGAIN (try again)
       newSocketId = sl_Accept(socketId, (struct SlSockAddr_t *)&sAddr,
                               (SlSocklen_t*)&iAddrSize);
-
       if (newSocketId == SL_EAGAIN ){
         /* MAP_UtilsDelay(10000); */
       }
@@ -579,17 +577,15 @@ int httpServer(unsigned short port){
     Report("addr: = %u\n", sAddr.sin_addr.s_addr);
     Report("port: = %u\n", sAddr.sin_port);
 
+    /* TODO: maximum buffer length is hardcoded */
     int const BUFFER_LENGTH = 1000;
     char buffer[BUFFER_LENGTH];
-    for (int i=0; i<BUFFER_LENGTH; ++i){
-      buffer[i] = '\0';
-    }
+    memset(buffer, '\0', BUFFER_LENGTH);
     iStatus = sl_Recv(newSocketId, buffer, BUFFER_LENGTH, 0);
     Report("Received buffer = %s\n", buffer);
 
     /* error */
     if (iStatus <= 0){
-      /* ASSERT_ON_ERROR(RECV_ERROR); */
       Report("Receive Error");
       char packetData[] = "HTTP/1.1 500 OK\r\nContent-Length: 25\r\nContent-Type: "
         "text/plain\r\nConnection: Closed\r\n\r\n{\"error\":\"receive error\"}";
@@ -603,7 +599,6 @@ int httpServer(unsigned short port){
       }
     }
     else{
-      /* handleHttpRequest(buffer, newSocketId); */
       routerHandleRequest(buffer, newSocketId);
     }
 
@@ -734,15 +729,16 @@ long apMode(char *ssid){
   if(lRetVal != ROLE_AP && g_uiDeviceModeConfig == ROLE_AP ){
     lRetVal = startAP(ssid);
     if (lRetVal == ROLE_AP){
+      memset(ucAPSSID, '\0', AP_SSID_LEN_MAX);
       len = AP_SSID_LEN_MAX;
       config_opt = WLAN_AP_OPT_SSID;
-      long status = sl_WlanGet(SL_WLAN_CFG_AP_ID, &config_opt , &len,
-                               (unsigned char*) ucAPSSID);
-      Report("Broadcasting ssid = %s\r\n", ucAPSSID);
+      lRetVal = sl_WlanGet(SL_WLAN_CFG_AP_ID, &config_opt , &len,
+                           (unsigned char*) ucAPSSID);
+      ASSERT_ON_ERROR(lRetVal);
+      Report("\n\rDevice is in AP Mode [%s] \n\r", ucAPSSID);
     }
     else{
       ASSERT_ON_ERROR(lRetVal);
-      /* return lRetVal; */
     }
   }
 
@@ -763,24 +759,13 @@ long apMode(char *ssid){
 #endif
     }
 
-    //Stop Internal HTTP Server
+    // Stop Internal HTTP Server
     lRetVal = sl_NetAppStop(SL_NET_APP_HTTP_SERVER_ID);
     ASSERT_ON_ERROR( lRetVal);
 
-    //Start Internal HTTP Server
+    // Start Internal HTTP Server
     lRetVal = sl_NetAppStart(SL_NET_APP_HTTP_SERVER_ID);
     ASSERT_ON_ERROR( lRetVal);
-
-    /* char iCount=0; */
-    //Read the AP SSID
-    memset(ucAPSSID, '\0', AP_SSID_LEN_MAX);
-    len = AP_SSID_LEN_MAX;
-    config_opt = WLAN_AP_OPT_SSID;
-    lRetVal = sl_WlanGet(SL_WLAN_CFG_AP_ID, &config_opt , &len,
-                         (unsigned char*) ucAPSSID);
-    ASSERT_ON_ERROR(lRetVal);
-
-    Report("\n\rDevice is in AP Mode [%s] \n\r", ucAPSSID);
 
     // Cycle the LED lighs 3 times to Indicate AP Mode
     int leds[] = {MCU_RED_LED_GPIO, MCU_ORANGE_LED_GPIO, MCU_GREEN_LED_GPIO};

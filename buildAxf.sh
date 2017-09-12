@@ -1,8 +1,7 @@
 #!/bin/bash
 
 #
-# Hack to make cmake build link the object files and create an .axf
-# file
+# Hack to make cmake link the object files and create an .axf file
 #
 # Usage: buildAxf.sh $1 $2 $3
 #    $1: path to linker script
