@@ -23,6 +23,13 @@ int routerHandleRequest(char const* req, int socketId){
     free(resp);
     ret = sl_Send(socketId, resp, strlen(resp), 0);
   }
+  else if (header->contentLength > strlen(req)){
+    freeHttpHeader(header);
+    /* TODO: remove magic number */
+    char *resp = genJsonResponse("413 Payload Too Large", "{\"error\":\"Max buffer 1000 bytes\"}");
+    free(resp);
+    ret = sl_Send(socketId, resp, strlen(resp), 0);
+  }
   else{
     // LED status
     if (strcmp(header->path, "/led") == 0){
@@ -94,7 +101,7 @@ int ledPathHandler(char const* req, HttpHeader *header, int socketId){
 
   /* Toggle LED lights */
   if (header->method == HTTP_REQ_POST){
-  /* Content-length is required */
+    /* Content-length is required */
     if (header->contentLength < 1){
       char *resp = genJsonResponse("411 Length Required", "{}");
       ret = sl_Send(socketId, resp, strlen(resp), 0);
