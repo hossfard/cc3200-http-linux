@@ -26,7 +26,7 @@ list(
   HttpRequest.c
   Router.c
   HttpServer.c
-  EventHandlers_impl.c
+  EventHandlers.c
   jsmn/jsmn.c
   $ENV{CC3200SDK}/example/common/uart_if.c
   $ENV{CC3200SDK}/example/common/gpio_if.c

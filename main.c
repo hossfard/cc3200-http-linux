@@ -6,7 +6,7 @@
 
 /*
  *
- *! \addtogroup tcp_socket
+ *! \addtogroup http-server
  *! @{
  *
  */
@@ -14,6 +14,7 @@
 // Standard includes
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 // simplelink includes
 #include <simplelink.h>
@@ -22,17 +23,16 @@
 // driverlib includes
 #include <hw_ints.h>
 #include <hw_types.h>
-#include <hw_memmap.h>
-#include <hw_common_reg.h>
-#include <rom.h>
-#include <rom_map.h>
-#include <interrupt.h>
-#include <prcm.h>
-#include <uart.h>
+
+//#include <uart.h>
+//#include <gpio_if.h>
+#include <udma_if.h>
 #include <utils.h>
+#include <prcm.h>
+#include <interrupt.h>
+#include <rom_map.h>
 
 // common interface includes
-#include <udma_if.h>
 #include <common.h>
 #ifndef NOTERM
 #include <uart_if.h>
@@ -41,10 +41,9 @@
 #include <osi.h>
 
 #include <gpio_if.h>
-#include <stdbool.h>
 #include "HttpRequest.h"
 #include "HttpServer.h"
-#include "Router.h"
+#include "EventHandlers.h"
 #include "pinmux.h"
 
 #define AP_SSID_LEN_MAX         (33)
@@ -69,9 +68,6 @@ typedef enum{
 /*
  * GLOBAL VARIABLES -- Start
  */
-volatile unsigned long  g_ulStatus = 0; //SimpleLink Status
-unsigned long  g_ulGatewayIP = 0;       //Network Gateway IP address
-unsigned long  g_ulIpAddr = 0;
 OsiTaskHandle g_deviceInitTaskHandle = NULL;
 OsiTaskHandle g_apModeTaskHandle = NULL;
 
@@ -87,7 +83,6 @@ extern uVectorEntry __vector_table;
  */
 
 void boardInit(void);
-void initializeAppVariables();
 long wlanConnect(signed char* ssid, signed char* key);
 long configureSimpleLinkToDefaultState();
 long apMode(char *ssid);
@@ -110,8 +105,6 @@ int main(){
 
   // Configuring UART
   InitTerm();
-
-  initializeAppVariables();
 
   lRetVal = VStartSimpleLinkSpawnTask(SPAWN_TASK_PRIORITY);
 
@@ -207,188 +200,6 @@ void httpServerTask(){
 }
 
 
-/*
- * \brief The Function Handles WLAN Events
- *
- * \param[in]  pWlanEvent - Pointer to WLAN Event Info
- *
- * \return None
- *
- */
-void SimpleLinkWlanEventHandler(SlWlanEvent_t *pWlanEvent){
-  Report("WLANEventHandler \n");
-
-  switch(pWlanEvent->Event){
-  case SL_WLAN_CONNECT_EVENT:{
-      SET_STATUS_BIT(g_ulStatus, STATUS_BIT_CONNECTION);
-
-      //
-      // Information about the connected AP (like name, MAC etc) will be
-      // available in 'slWlanConnectAsyncResponse_t'-Applications
-      // can use it if required
-      //
-      //  slWlanConnectAsyncResponse_t *pEventData = NULL;
-      // pEventData = &pWlanEvent->EventData.STAandP2PModeWlanConnected;
-      //
-      //
-      break;
-    }
-  case SL_WLAN_DISCONNECT_EVENT:
-    {
-      slWlanConnectAsyncResponse_t*  pEventData = NULL;
-
-      CLR_STATUS_BIT(g_ulStatus, STATUS_BIT_CONNECTION);
-      CLR_STATUS_BIT(g_ulStatus, STATUS_BIT_IP_AQUIRED);
-
-      pEventData = &pWlanEvent->EventData.STAandP2PModeDisconnected;
-
-      // If the user has initiated 'Disconnect' request,
-      //'reason_code' is SL_WLAN_DISCONNECT_USER_INITIATED_DISCONNECTION
-      if(SL_WLAN_DISCONNECT_USER_INITIATED_DISCONNECTION == pEventData->reason_code){
-        Report("Device disconnected from the AP on application's "
-                   "request \n\r");
-      }
-      else{
-        Report("Device disconnected from the AP on an ERROR..!! \n\r");
-      }
-      break;
-    }
-  case SL_WLAN_STA_CONNECTED_EVENT:{
-      // when device is in AP mode and any client connects to device cc3xxx
-      SET_STATUS_BIT(g_ulStatus, STATUS_BIT_CONNECTION);
-      Report("CONNECTED EVENT \n\r");
-
-      //
-      // Information about the connected client (like SSID, MAC etc) will be
-      // available in 'slPeerInfoAsyncResponse_t' - Applications
-      // can use it if required
-      //
-      // slPeerInfoAsyncResponse_t *pEventData = NULL;
-      // pEventData = &pSlWlanEvent->EventData.APModeStaConnected;
-      //
-      break;
-    }
-  case SL_WLAN_STA_DISCONNECTED_EVENT:{
-    // when client disconnects from device (AP)
-    CLR_STATUS_BIT(g_ulStatus, STATUS_BIT_CONNECTION);
-    CLR_STATUS_BIT(g_ulStatus, STATUS_BIT_IP_LEASED);
-
-    //
-    // Information about the connected client (like SSID, MAC etc) will
-    // be available in 'slPeerInfoAsyncResponse_t' - Applications
-    // can use it if required
-    //
-    // slPeerInfoAsyncResponse_t *pEventData = NULL;
-    // pEventData = &pSlWlanEvent->EventData.APModestaDisconnected;
-    //
-    break;
-    }
-  default:{
-      Report("[WLAN EVENT] Unexpected event \n\r");
-      break;
-    }
-  }
-}
-
-
-/*! This function handles network events such as IP acquisition, IP
- *           leased, IP released etc.
- *
- * \param[in]  pNetAppEvent - Pointer to NetApp Event Info
- *
- * \return None
- *
- */
-void SimpleLinkNetAppEventHandler(SlNetAppEvent_t *pNetAppEvent){
-  Report("simpleLinkNetAppEventHandler \n");
-
-  if(!pNetAppEvent){
-    return;
-  }
-
-  switch(pNetAppEvent->Event){
-    case SL_NETAPP_IPV4_IPACQUIRED_EVENT:{
-      SlIpV4AcquiredAsync_t *pEventData = NULL;
-      Report("slNetAppEventHandler: ip acquaired \n");
-      SET_STATUS_BIT(g_ulStatus, STATUS_BIT_IP_AQUIRED);
-
-      //Ip Acquired Event Data
-      pEventData = &pNetAppEvent->EventData.ipAcquiredV4;
-      g_ulIpAddr = pEventData->ip;
-
-      //Gateway IP address
-      g_ulGatewayIP = pEventData->gateway;
-
-      Report("[NETAPP EVENT] IP Acquired: IP=%d.%d.%d.%d , "
-                 "Gateway=%d.%d.%d.%d\n\r",
-                 SL_IPV4_BYTE(g_ulIpAddr,3),
-                 SL_IPV4_BYTE(g_ulIpAddr,2),
-                 SL_IPV4_BYTE(g_ulIpAddr,1),
-                 SL_IPV4_BYTE(g_ulIpAddr,0),
-                 SL_IPV4_BYTE(g_ulGatewayIP,3),
-                 SL_IPV4_BYTE(g_ulGatewayIP,2),
-                 SL_IPV4_BYTE(g_ulGatewayIP,1),
-                 SL_IPV4_BYTE(g_ulGatewayIP,0));
-      break;
-    }
-    case SL_NETAPP_IP_LEASED_EVENT:{
-      SET_STATUS_BIT(g_ulStatus, STATUS_BIT_IP_LEASED);
-      break;
-    }
-    case SL_NETAPP_IPV6_IPACQUIRED_EVENT:{
-      SET_STATUS_BIT(g_ulStatus, STATUS_BIT_IP_AQUIRED);
-      break;
-    }
-    default:{
-      Report("[NETAPP EVENT] Unexpected event [0x%x] \n\r",
-                 pNetAppEvent->Event);
-      break;
-    }
-  }
-}
-
-
-/*! This function handles General Events
- *
- * \param[in]     pDevEvent - Pointer to General Event Info
- *
- * \return None
- */
-void SimpleLinkGeneralEventHandler(SlDeviceEvent_t *pDevEvent){
-  Report("SimpleLinkGeneralEventHandler\r\n");
-  if(!pDevEvent){
-    return;
-  }
-
-  //
-  // Most of the general errors are not FATAL are are to be handled
-  // appropriately by the application
-  //
-  Report("[GENERAL EVENT] - ID=[%d] Sender=[%d]\n\n",
-             pDevEvent->EventData.deviceEvent.status,
-             pDevEvent->EventData.deviceEvent.sender);
-}
-
-
-//*****************************************************************************
-// SimpleLink Asynchronous Event Handlers -- End
-//*****************************************************************************
-
-
-
-/* Initialize application variables
- *
- * \param[in]  None
- *
- * \return None
- *
- */
-void initializeAppVariables(){
-  g_ulStatus = 0;
-  g_ulGatewayIP = 0;
-}
-
-
 /* Put the device in its default state
  *
  *   - Set the mode to STATION
@@ -428,7 +239,7 @@ long configureSimpleLinkToDefaultState(){
           Report("ROLE_AP == lmode \r\n");
           // If the device is in AP mode, we need to wait for this event
           // before doing anything
-          while(!IS_IP_ACQUIRED(g_ulStatus))
+          while(!IS_IP_ACQUIRED(simpleLinkStatus()))
             {
 #ifndef SL_PLATFORM_MULTI_THREADED
               _SlNonOsMainLoopTask();
@@ -489,7 +300,7 @@ long configureSimpleLinkToDefaultState(){
   if(0 == lRetVal)
     {
       // Wait
-      while(IS_CONNECTED(g_ulStatus))
+      while(IS_CONNECTED(simpleLinkStatus()))
         {
 #ifndef SL_PLATFORM_MULTI_THREADED
           _SlNonOsMainLoopTask();
@@ -530,8 +341,6 @@ long configureSimpleLinkToDefaultState(){
   lRetVal = sl_Stop(SL_STOP_TIMEOUT);
   ASSERT_ON_ERROR(lRetVal);
 
-  initializeAppVariables();
-
   return lRetVal; // Success
 }
 
@@ -563,7 +372,7 @@ long wlanConnect(signed char* ssid, signed char* key){
   ASSERT_ON_ERROR(lRetVal);
 
   // Wait for connection
-  while ((!IS_CONNECTED(g_ulStatus)) || (!IS_IP_ACQUIRED(g_ulStatus))){
+  while ((!IS_CONNECTED(simpleLinkStatus())) || (!IS_IP_ACQUIRED(simpleLinkStatus()))){
     // Wait for WLAN Event
 #ifndef SL_PLATFORM_MULTI_THREADED
     _SlNonOsMainLoopTask();
@@ -577,10 +386,10 @@ long wlanConnect(signed char* ssid, signed char* key){
     Report("Connected to AP: %s \n\r", ssid);
     // IPV4
     Report("Device IP: %d.%d.%d.%d\n\r\n\r",
-           SL_IPV4_BYTE(g_ulIpAddr, 3),
-           SL_IPV4_BYTE(g_ulIpAddr, 2),
-           SL_IPV4_BYTE(g_ulIpAddr, 1),
-           SL_IPV4_BYTE(g_ulIpAddr, 0));
+           SL_IPV4_BYTE(simpleLinkIpAddress(), 3),
+           SL_IPV4_BYTE(simpleLinkIpAddress(), 2),
+           SL_IPV4_BYTE(simpleLinkIpAddress(), 1),
+           SL_IPV4_BYTE(simpleLinkIpAddress(), 0));
   }
 
   return SUCCESS;
@@ -629,7 +438,7 @@ long startAP(char * ssid){
   lRetVal = sl_Stop(SL_STOP_TIMEOUT);
 
   // reset status bits
-  CLR_STATUS_BIT_ALL(g_ulStatus);
+  resetSimpleLinkStatus();
 
   return sl_Start(NULL,NULL,NULL);
 }
@@ -671,7 +480,7 @@ long apMode(char *ssid){
     sl_NetAppSet(SL_NET_APP_DEVICE_CONFIG_ID, NETAPP_SET_GET_DEV_CONF_OPT_DOMAIN_NAME,
                  len2, (unsigned char*)str2);
 
-    while (!IS_IP_ACQUIRED(g_ulStatus)){
+    while (!IS_IP_ACQUIRED(simpleLinkStatus())){
 #ifndef SL_PLATFORM_MULTI_THREADED
       _SlNonOsMainLoopTask();
 #endif
@@ -705,7 +514,7 @@ long apMode(char *ssid){
     }
 
     Report("\n\rConnect a device \n\r");
-    while(!IS_IP_LEASED(g_ulStatus)){
+    while(!IS_IP_LEASED(simpleLinkStatus())){
       //wating for the client to connect
 #ifndef SL_PLATFORM_MULTI_THREADED
       _SlNonOsMainLoopTask();
@@ -715,27 +524,6 @@ long apMode(char *ssid){
   }
 
   return lRetVal;
-}
-
-
-void vApplicationStackOverflowHook(OsiTaskHandle *pxTask,
-                                   signed char *pcTaskName){
-  //Handle FreeRTOS Stack Overflow
-  while(1){
-  }
-}
-
-void vApplicationMallocFailedHook(){
-  //Handle Memory Allocation Errors
-  while(1){
-  }
-}
-
-
-void vApplicationIdleHook(){
-  //Handle Memory Allocation Errors
-  while(1){
-  }
 }
 
 
