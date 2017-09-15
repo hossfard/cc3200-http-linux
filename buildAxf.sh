@@ -41,7 +41,8 @@ libc=$($COMPILER $FLAGS -print-file-name=libc.a)
 
 # driver and simplelink libraries
 libdriver=$CC3200SDK/driverlib/gcc/exe/libdriver.a
-libsl=$CC3200SDK/simplelink/gcc/exe/libsimplelink_nonos.a
+libsl=$CC3200SDK/simplelink/gcc/exe/libsimplelink.a
+libfreertos=$CC3200SDK/oslib/gcc/exe/FreeRTOS.a
 
 # Linker flags
 FLAGS="--entry ResetISR --gc-sections"
@@ -52,4 +53,4 @@ NC="\033[0m"
 BOLD="\e[1m"
 RESET="\e[0m"
 echo -e ">${GREEN}${BOLD} Calling $LINKER ${NC} ${RESET}"
-$LINKER -T $linkerScript $FLAGS -o $outFile $obj $libsl $libdriver $libm $libc $libgcc
+$LINKER -T $linkerScript $FLAGS -o $outFile $obj $libsl $libdriver $libfreertos $libm $libc $libgcc

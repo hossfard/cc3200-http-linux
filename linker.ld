@@ -1,7 +1,7 @@
 /*****************************************************************************
 *
 * GCC Linker script for http application.
-* Taken from $CC3200SDK/example/tcp_socket/
+* Taken from $CC33200SDK/getting_started_with_wlan_ap/
 *
 * Copyright (C) 2014 Texas Instruments Incorporated - http://www.ti.com/
 *
@@ -51,8 +51,8 @@ SECTIONS
         KEEP(*(.intvecs))
         *(.text*)
         *(.rodata*)
-        *(.ARM.extab* .gnu.linkonce.armextab.*)
-        . = ALIGN(8);
+	*(.ARM.extab* .gnu.linkonce.armextab.*)
+	. = ALIGN(8);
         _etext = .;
     } > SRAM
 
@@ -68,7 +68,7 @@ SECTIONS
     {
         _data = .;
         *(.data*)
-        . = ALIGN (8);
+	. = ALIGN (8);
         _edata = .;
     } > SRAM
 
@@ -82,10 +82,11 @@ SECTIONS
 
     .heap :
     {
-        _heap = .;
-        . = . + HEAP_SIZE;
-        . = ALIGN(8);
-        _eheap = .;
+	_heap = .;
+	. = . + HEAP_SIZE;
+	. = ALIGN(8);
+	_eheap = .;
 
     }
 }
+

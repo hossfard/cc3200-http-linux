@@ -38,6 +38,8 @@
 #include <uart_if.h>
 #endif
 
+#include <osi.h>
+
 #include <gpio_if.h>
 #include <stdbool.h>
 #include "HttpRequest.h"
@@ -80,6 +82,9 @@ unsigned char  g_ucSimplelinkstarted = 0;
 unsigned long  g_ulIpAddr = 0;
 char g_cBsdBuf[BUF_SIZE];
 
+OsiTaskHandle g_deviceInitTaskHandle = NULL;
+OsiTaskHandle g_apModeTaskHandle = NULL;
+
 #if defined(ccs) || defined (gcc)
 extern void (* const g_pfnVectors[])(void);
 #endif
@@ -95,8 +100,11 @@ void boardInit(void);
 void initializeAppVariables();
 long wlanConnect(signed char* ssid, signed char* key);
 long configureSimpleLinkToDefaultState();
-int httpServer(unsigned short port);
+long httpServer(unsigned short port);
 long apMode(char *ssid);
+void deviceInitTask();
+void apModeTask();
+void httpServerTask();
 
 
 int main(){
@@ -116,6 +124,32 @@ int main(){
 
   initializeAppVariables();
 
+  lRetVal = VStartSimpleLinkSpawnTask(SPAWN_TASK_PRIORITY);
+
+  int const OSI_STACK_SIZE = 2048;
+
+  osi_TaskCreate(deviceInitTask, (signed char*)"device-init",
+                 OSI_STACK_SIZE, NULL, 99, &g_deviceInitTaskHandle);
+
+  Report("\n> deviceHandle %d \n\r", g_deviceInitTaskHandle);
+  osi_TaskCreate(apModeTask, (signed char*)"ap-mode",
+                 OSI_STACK_SIZE, NULL, 1, &g_apModeTaskHandle);
+
+  osi_TaskCreate(httpServerTask, (signed char*)"httpServerTask",
+                 OSI_STACK_SIZE, NULL, 1, NULL);
+
+  osi_start();
+
+  // power of the Network processor
+  lRetVal = sl_Stop(SL_STOP_TIMEOUT);
+
+  return 0;
+}
+
+
+void deviceInitTask(){
+  UART_PRINT("Device Init \n\r");
+
   /*
    * Following function configure the device to default state by cleaning
    * the persistent settings stored in NVMEM (viz. connection profiles &
@@ -128,7 +162,7 @@ int main(){
    * device will be lost
    *
    */
-  lRetVal = configureSimpleLinkToDefaultState();
+  int lRetVal = configureSimpleLinkToDefaultState();
 
   if (lRetVal < 0){
     if (DEVICE_NOT_IN_STATION_MODE == lRetVal){
@@ -136,36 +170,52 @@ int main(){
     }
     LOOP_FOREVER();
   }
-
   UART_PRINT("Device is configured in default state \n\r");
 
-  /*
-   * Assumption is that the device is configured in station mode
-   * already and it is in its default state
-   */
-  lRetVal = sl_Start(0, 0, 0);
+  OsiTaskHandle ptr = g_deviceInitTaskHandle;
+  g_deviceInitTaskHandle = NULL;
+  osi_TaskDelete(&ptr);
+}
+
+
+/*! Start AP mode and broadcast SSID
+ *
+ * This task ends itself upon execution
+ */
+void apModeTask(){
+  // Wait for the device to be intialized
+  while (g_deviceInitTaskHandle != NULL){
+    osi_Sleep(1000);
+  }
+
+  int lRetVal = sl_Start(0, 0, 0);
 
   if (lRetVal < 0){
     UART_PRINT("Failed to start the device \n\r");
     LOOP_FOREVER();
   }
 
-  /* Start AP mode */
-  apMode("LPSystem");
+  // Start AP mode
+  apMode("LPSystems");
 
-  int const port = 5001;
-  httpServer(port);
+  // Remove task from scheduler
+  OsiTaskHandle ptr = g_apModeTaskHandle;
+  g_apModeTaskHandle = NULL;
+  osi_TaskDelete(&ptr);
+}
 
-  UART_PRINT("Exiting Application ...\n\r");
 
-  // power of the Network processor
-  lRetVal = sl_Stop(SL_STOP_TIMEOUT);
-
-  while (1){
-    _SlNonOsMainLoopTask();
+/*! Start HTTP server
+ *
+ */
+void httpServerTask(){
+  // Wait for AP mode to start
+  while (g_apModeTaskHandle != NULL){
+    osi_Sleep(1000);
   }
 
-  return 0;
+  // Start httpServer infinite listen loop
+  httpServer(5001);
 }
 
 
@@ -500,16 +550,14 @@ long configureSimpleLinkToDefaultState(){
   return lRetVal; // Success
 }
 
-
-/* Simple server accepting GET/POST requests
+/*! Create a TCP socket and return its id
  *
- * \param port port number to listen on
- *
- * TODO: cleanup
- *
+ * \param port
  * \return TODO
+ *
+ * TODO: error handling
  */
-int httpServer(unsigned short port){
+int createTcpSocket(int port){
   SlSockAddrIn_t sLocalAddr;
 
   // filling the TCP server socket address
@@ -524,10 +572,8 @@ int httpServer(unsigned short port){
     ASSERT_ON_ERROR(SOCKET_CREATE_ERROR);
   }
 
-  int iAddrSize = sizeof(SlSockAddrIn_t);
-
   // Bind the TCP socket to the TCP server address
-  int iStatus = sl_Bind(socketId, (SlSockAddr_t*)&sLocalAddr, iAddrSize);
+  int iStatus = sl_Bind(socketId, (SlSockAddr_t*)&sLocalAddr, sizeof(SlSockAddrIn_t));
   if (iStatus < 0){
     sl_Close(socketId);
     ASSERT_ON_ERROR(BIND_ERROR);
@@ -548,11 +594,23 @@ int httpServer(unsigned short port){
     sl_Close(socketId);
     ASSERT_ON_ERROR(SOCKET_OPT_ERROR);
   }
+  return socketId;
+}
 
+
+long httpServer(unsigned short port){
+  int iAddrSize = sizeof(SlSockAddrIn_t);
   int newSocketId = SL_EAGAIN;  // try again
+  int socketId = createTcpSocket(port);
+  int iStatus = 0;
 
-  /* Handle requests */
+  // putting the buffer on the stack can cause stack overflow
+  int const BUFFER_LENGTH = 1000;
+  char *buffer = malloc(sizeof(char)*BUFFER_LENGTH);
+
+  // Listen for incoming connections
   while (true){
+    /* Handle requests */
     newSocketId = SL_EAGAIN;
 
     SlSockAddrIn_t sAddr;
@@ -563,7 +621,7 @@ int httpServer(unsigned short port){
       newSocketId = sl_Accept(socketId, (struct SlSockAddr_t *)&sAddr,
                               (SlSocklen_t*)&iAddrSize);
       if (newSocketId == SL_EAGAIN ){
-        /* MAP_UtilsDelay(10000); */
+        osi_Sleep(1);
       }
       else if (newSocketId < 0){
         // error
@@ -578,8 +636,6 @@ int httpServer(unsigned short port){
     Report("port: = %u\n", sAddr.sin_port);
 
     /* TODO: maximum buffer length is hardcoded */
-    int const BUFFER_LENGTH = 1000;
-    char buffer[BUFFER_LENGTH];
     memset(buffer, '\0', BUFFER_LENGTH);
     iStatus = sl_Recv(newSocketId, buffer, BUFFER_LENGTH, 0);
     Report("Received buffer = %s\n", buffer);
@@ -592,28 +648,27 @@ int httpServer(unsigned short port){
       iStatus = sl_Send(newSocketId, packetData, strlen(packetData), 0);
       if (iStatus < 0){
         // error
-        /* sl_Close(newSocketId); */
-        /* sl_Close(socketId); */
-        /* ASSERT_ON_ERROR(SEND_ERROR); */
-        Report("Send Error");
+        ASSERT_ON_ERROR(SEND_ERROR);
       }
     }
     else{
       routerHandleRequest(buffer, newSocketId);
     }
-
-    Report("Closing sockets\n");
     iStatus = sl_Close(newSocketId);
+    ASSERT_ON_ERROR(iStatus);
   }
+
+  free(buffer);
 
   // close the connected socket after receiving from connected TCP client
   Report("Closing sockets\n");
-  iStatus = sl_Close(newSocketId);
+
   ASSERT_ON_ERROR(iStatus);
   // close the listening socket
   iStatus = sl_Close(socketId);
   ASSERT_ON_ERROR(iStatus);
 
+  Report("end server\n");
   return SUCCESS;
 }
 
@@ -732,9 +787,9 @@ long apMode(char *ssid){
       memset(ucAPSSID, '\0', AP_SSID_LEN_MAX);
       len = AP_SSID_LEN_MAX;
       config_opt = WLAN_AP_OPT_SSID;
-      lRetVal = sl_WlanGet(SL_WLAN_CFG_AP_ID, &config_opt , &len,
+      int ret = sl_WlanGet(SL_WLAN_CFG_AP_ID, &config_opt , &len,
                            (unsigned char*) ucAPSSID);
-      ASSERT_ON_ERROR(lRetVal);
+      ASSERT_ON_ERROR(ret);
       Report("\n\rDevice is in AP Mode [%s] \n\r", ucAPSSID);
     }
     else{
@@ -795,7 +850,29 @@ long apMode(char *ssid){
     }
 
   }
+
   return lRetVal;
+}
+
+
+void vApplicationStackOverflowHook(OsiTaskHandle *pxTask,
+                                   signed char *pcTaskName){
+  //Handle FreeRTOS Stack Overflow
+  while(1){
+  }
+}
+
+void vApplicationMallocFailedHook(){
+  //Handle Memory Allocation Errors
+  while(1){
+  }
+}
+
+
+void vApplicationIdleHook(){
+  //Handle Memory Allocation Errors
+  while(1){
+  }
 }
 
 

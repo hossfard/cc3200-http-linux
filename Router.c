@@ -197,7 +197,11 @@ int ledPostHandler(char const* req, HttpHeader *header, int socketId){
 
 int ledGetHandler(char const* req, HttpHeader *header, int socketId){
   /* return status of led lights */
-  char data[200];
+
+  // Putting data on the stack will overflow
+  char *data = malloc(sizeof(char)*200);
+  memset(data, '\0', 200);
+
   if (GPIO_IF_LedStatus(MCU_ORANGE_LED_GPIO) == 0){
     strcpy(data, "{\"orange\":\"off\",");
   }
@@ -219,6 +223,7 @@ int ledGetHandler(char const* req, HttpHeader *header, int socketId){
   char* jsonResp = genJsonResponse("200 OK", data);
   int iStatus = sl_Send(socketId, jsonResp, strlen(jsonResp), 0);
   free(jsonResp);
+  free(data);
   if (iStatus < 0){
     Report("Send Error");
   }

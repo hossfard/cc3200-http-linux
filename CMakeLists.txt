@@ -38,10 +38,21 @@ list(
 include_directories(".")
 include_directories("jsmn")
 include_directories($ENV{CC3200SDK}/example/common)
+include_directories($ENV{CC3200SDK}/simplelink)
 include_directories($ENV{CC3200SDK}/simplelink/include)
+include_directories($ENV{CC3200SDK}/simplelink/source)
 include_directories($ENV{CC3200SDK}/simplelink_extlib/provisioninglib)
 include_directories($ENV{CC3200SDK}/driverlib)
+include_directories($ENV{CC3200SDK}/oslib)
 include_directories($ENV{CC3200SDK}/inc)
+include_directories($ENV{CC3200SDK}/third_party/FreeRTOS)
+include_directories($ENV{CC3200SDK}/third_party/FreeRTOS/source)
+include_directories($ENV{CC3200SDK}/third_party/FreeRTOS/source/portable/GCC/ARM_CM4)
+include_directories($ENV{CC3200SDK}/third_party/FreeRTOS/source/include)
+
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DSL_PLATFORM_MULTI_THREADED -DUSE_FREERTOS")
+
 
 add_executable(${app} ${app_sources})
 
