@@ -43,6 +43,7 @@
 #include <gpio_if.h>
 #include <stdbool.h>
 #include "HttpRequest.h"
+#include "HttpServer.h"
 #include "Router.h"
 #include "pinmux.h"
 #include <jsmn.h>
@@ -100,7 +101,6 @@ void boardInit(void);
 void initializeAppVariables();
 long wlanConnect(signed char* ssid, signed char* key);
 long configureSimpleLinkToDefaultState();
-long httpServer(unsigned short port);
 long apMode(char *ssid);
 void deviceInitTask();
 void apModeTask();
@@ -548,128 +548,6 @@ long configureSimpleLinkToDefaultState(){
   initializeAppVariables();
 
   return lRetVal; // Success
-}
-
-/*! Create a TCP socket and return its id
- *
- * \param port
- * \return TODO
- *
- * TODO: error handling
- */
-int createTcpSocket(int port){
-  SlSockAddrIn_t sLocalAddr;
-
-  // filling the TCP server socket address
-  sLocalAddr.sin_family = SL_AF_INET;
-  sLocalAddr.sin_port = sl_Htons(port);
-  sLocalAddr.sin_addr.s_addr = 0;
-
-  // Create a TCP socket
-  int socketId = sl_Socket(SL_AF_INET, SL_SOCK_STREAM, 0);
-  if( socketId < 0 ){
-    // error
-    ASSERT_ON_ERROR(SOCKET_CREATE_ERROR);
-  }
-
-  // Bind the TCP socket to the TCP server address
-  int iStatus = sl_Bind(socketId, (SlSockAddr_t*)&sLocalAddr, sizeof(SlSockAddrIn_t));
-  if (iStatus < 0){
-    sl_Close(socketId);
-    ASSERT_ON_ERROR(BIND_ERROR);
-  }
-
-  // Put the socket for listening to the incoming TCP connection
-  iStatus = sl_Listen(socketId, 0);
-  if (iStatus < 0){
-    sl_Close(socketId);
-    ASSERT_ON_ERROR(LISTEN_ERROR);
-  }
-
-  // Make the socket non-blocking
-  long lNonBlocking = 1;
-  iStatus = sl_SetSockOpt(socketId, SL_SOL_SOCKET, SL_SO_NONBLOCKING,
-                          &lNonBlocking, sizeof(lNonBlocking));
-  if (iStatus < 0){
-    sl_Close(socketId);
-    ASSERT_ON_ERROR(SOCKET_OPT_ERROR);
-  }
-  return socketId;
-}
-
-
-long httpServer(unsigned short port){
-  int iAddrSize = sizeof(SlSockAddrIn_t);
-  int newSocketId = SL_EAGAIN;  // try again
-  int socketId = createTcpSocket(port);
-  int iStatus = 0;
-
-  // putting the buffer on the stack can cause stack overflow
-  int const BUFFER_LENGTH = 1000;
-  char *buffer = malloc(sizeof(char)*BUFFER_LENGTH);
-
-  // Listen for incoming connections
-  while (true){
-    /* Handle requests */
-    newSocketId = SL_EAGAIN;
-
-    SlSockAddrIn_t sAddr;
-    // Waiting for an incoming TCP connection
-    while (newSocketId < 0){
-      // Accept a connection form a TCP client, if there is any
-      // otherwise returns SL_EAGAIN (try again)
-      newSocketId = sl_Accept(socketId, (struct SlSockAddr_t *)&sAddr,
-                              (SlSocklen_t*)&iAddrSize);
-      if (newSocketId == SL_EAGAIN ){
-        osi_Sleep(1);
-      }
-      else if (newSocketId < 0){
-        // error
-        sl_Close(newSocketId);
-        sl_Close(socketId);
-        ASSERT_ON_ERROR(ACCEPT_ERROR);
-      }
-    }
-
-    Report("Connected device\n");
-    Report("addr: = %u\n", sAddr.sin_addr.s_addr);
-    Report("port: = %u\n", sAddr.sin_port);
-
-    /* TODO: maximum buffer length is hardcoded */
-    memset(buffer, '\0', BUFFER_LENGTH);
-    iStatus = sl_Recv(newSocketId, buffer, BUFFER_LENGTH, 0);
-    Report("Received buffer = %s\n", buffer);
-
-    /* error */
-    if (iStatus <= 0){
-      Report("Receive Error");
-      char packetData[] = "HTTP/1.1 500 OK\r\nContent-Length: 25\r\nContent-Type: "
-        "text/plain\r\nConnection: Closed\r\n\r\n{\"error\":\"receive error\"}";
-      iStatus = sl_Send(newSocketId, packetData, strlen(packetData), 0);
-      if (iStatus < 0){
-        // error
-        ASSERT_ON_ERROR(SEND_ERROR);
-      }
-    }
-    else{
-      routerHandleRequest(buffer, newSocketId);
-    }
-    iStatus = sl_Close(newSocketId);
-    ASSERT_ON_ERROR(iStatus);
-  }
-
-  free(buffer);
-
-  // close the connected socket after receiving from connected TCP client
-  Report("Closing sockets\n");
-
-  ASSERT_ON_ERROR(iStatus);
-  // close the listening socket
-  iStatus = sl_Close(socketId);
-  ASSERT_ON_ERROR(iStatus);
-
-  Report("end server\n");
-  return SUCCESS;
 }
 
 

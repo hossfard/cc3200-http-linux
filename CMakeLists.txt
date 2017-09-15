@@ -25,6 +25,7 @@ list(
   pinmux.c
   HttpRequest.c
   Router.c
+  HttpServer.c
   EventHandlers_impl.c
   jsmn/jsmn.c
   $ENV{CC3200SDK}/example/common/uart_if.c
