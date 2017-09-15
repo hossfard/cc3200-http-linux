@@ -20,15 +20,15 @@ int routerHandleRequest(char const* req, int socketId){
   if (header->path == NULL){
     freeHttpHeader(header);
     char *resp = genJsonResponse("400 Bad Request", "{\"error\":\"Invalid path\"}");
-    free(resp);
     ret = sl_Send(socketId, resp, strlen(resp), 0);
+    free(resp);
   }
   else if (header->contentLength > strlen(req)){
     freeHttpHeader(header);
     /* TODO: remove magic number */
     char *resp = genJsonResponse("413 Payload Too Large", "{\"error\":\"Max buffer 1000 bytes\"}");
-    free(resp);
     ret = sl_Send(socketId, resp, strlen(resp), 0);
+    free(resp);
   }
   else{
     // LED status
