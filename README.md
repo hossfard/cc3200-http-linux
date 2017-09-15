@@ -26,7 +26,7 @@ Port: 5001
 
 ## `/led`
 
-## `GET`
+### `GET`
 
 Return Status of the three LED lights (red, green, and orange) as a
 JSON object.
@@ -48,7 +48,7 @@ Content-Type: application/json
 {"orange": "off","green": "off","red": "off"}
 ```
 
-## `POST`
+### `POST`
 
 Toggle LED lights `on` or `off`.
 
