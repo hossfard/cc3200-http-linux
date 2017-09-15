@@ -46,10 +46,6 @@
 #include "HttpServer.h"
 #include "Router.h"
 #include "pinmux.h"
-#include <jsmn.h>
-
-#define BUF_SIZE            1400
-#define TCP_PACKET_COUNT    1000
 
 #define AP_SSID_LEN_MAX         (33)
 
@@ -73,16 +69,9 @@ typedef enum{
 /*
  * GLOBAL VARIABLES -- Start
  */
-volatile unsigned long  g_ulStatus = 0;     //SimpleLink Status
-unsigned long  g_ulGatewayIP = 0; //Network Gateway IP address
-unsigned char  g_ucConnectionSSID[SSID_LEN_MAX+1]; //Connection SSID
-unsigned char  g_ucConnectionBSSID[BSSID_LEN_MAX]; //Connection BSSID
-volatile unsigned long  g_ulPacketCount = TCP_PACKET_COUNT;
-unsigned char  g_ucConnectionStatus = 0;
-unsigned char  g_ucSimplelinkstarted = 0;
+volatile unsigned long  g_ulStatus = 0; //SimpleLink Status
+unsigned long  g_ulGatewayIP = 0;       //Network Gateway IP address
 unsigned long  g_ulIpAddr = 0;
-char g_cBsdBuf[BUF_SIZE];
-
 OsiTaskHandle g_deviceInitTaskHandle = NULL;
 OsiTaskHandle g_apModeTaskHandle = NULL;
 
@@ -131,7 +120,6 @@ int main(){
   osi_TaskCreate(deviceInitTask, (signed char*)"device-init",
                  OSI_STACK_SIZE, NULL, 99, &g_deviceInitTaskHandle);
 
-  Report("\n> deviceHandle %d \n\r", g_deviceInitTaskHandle);
   osi_TaskCreate(apModeTask, (signed char*)"ap-mode",
                  OSI_STACK_SIZE, NULL, 1, &g_apModeTaskHandle);
 
@@ -398,9 +386,6 @@ void SimpleLinkGeneralEventHandler(SlDeviceEvent_t *pDevEvent){
 void initializeAppVariables(){
   g_ulStatus = 0;
   g_ulGatewayIP = 0;
-  memset(g_ucConnectionSSID,0,sizeof(g_ucConnectionSSID));
-  memset(g_ucConnectionBSSID,0,sizeof(g_ucConnectionBSSID));
-  g_ulPacketCount = TCP_PACKET_COUNT;
 }
 
 
