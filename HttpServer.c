@@ -82,6 +82,7 @@ long httpServer(unsigned short port){
   int iStatus = 0;
 
   // putting the buffer on the stack can cause stack overflow
+  /* TODO: maximum buffer length is hardcoded */
   int const BUFFER_LENGTH = 1000;
   char *buffer = malloc(sizeof(char)*BUFFER_LENGTH);
 
@@ -112,14 +113,26 @@ long httpServer(unsigned short port){
     Report("addr: = %u\n", sAddr.sin_addr.s_addr);
     Report("port: = %u\n", sAddr.sin_port);
 
-    /* TODO: maximum buffer length is hardcoded */
     memset(buffer, '\0', BUFFER_LENGTH);
     iStatus = sl_Recv(newSocketId, buffer, BUFFER_LENGTH, 0);
+    int attemptNumber = 2;
+    // May get 'Try Again' when socket is in non-blocking and using
+    // scheduler
+    while (iStatus == SL_EAGAIN){
+      iStatus = sl_Recv(newSocketId, buffer, BUFFER_LENGTH, 0);
+      ++attemptNumber;
+      if (attemptNumber > 5){
+        Report("More than 5 sl_Recv attempts. Giving up.\n");
+        ASSERT_ON_ERROR(RECV_ERROR);
+        break;
+      }
+    }
+
     Report("Received buffer = %s\n", buffer);
 
     /* error */
     if (iStatus <= 0){
-      Report("Receive Error");
+      Report("Receive Error [%d]", iStatus);
       char packetData[] = "HTTP/1.1 500 OK\r\nContent-Length: 25\r\nContent-Type: "
         "text/plain\r\nConnection: Closed\r\n\r\n{\"error\":\"receive error\"}";
       iStatus = sl_Send(newSocketId, packetData, strlen(packetData), 0);
