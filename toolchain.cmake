@@ -34,7 +34,7 @@ find_program(LINKER arm-none-eabi-ld)
 
 #SET(COMMON_FLAGS "-mthumb -mcpu=cortex-m4 -ffunction-sections -fdata-sections -MD -std=c99 -g -O0 -c")
 SET(CMAKE_CXX_FLAGS "${COMMON_FLAGS}  -std=gnu++0x")
-SET(CMAKE_C_FLAGS "-mthumb -mcpu=cortex-m4 -ffunction-sections -fdata-sections -MD -std=c99 -g -O0 -c -std=gnu99 -Dgcc -DUSER_INPUT_ENABLE")
+SET(CMAKE_C_FLAGS "-mthumb -mcpu=cortex-m4 -ffunction-sections -fdata-sections -MD -std=c99 -g -O0 -c -Dgcc -DUSER_INPUT_ENABLE")
 #set(CMAKE_EXE_LINKER_FLAGS "-Wl,-gc-sections ")
 
 #SET(CMAKE_C_LINK_EXECUTABLE arm-none-eabi-ld)
