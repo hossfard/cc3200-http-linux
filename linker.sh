@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #
-# Hack to make cmake link the object files and create an .axf file
+# Hack to get cmake link the object files and create .axf/.bin files
 #
-# Usage: buildAxf.sh $1 $2 $3
+# Usage: linker.sh $1 $2 $3
 #    $1: path to linker script
 #    $2: path to cmake build directory
-#    $3: Name of outputfile. Extension '.axf' will be added
+#    $3: Name of outputfile. Extensions '.axf'/'.bin' will be added
 #
 
 if [ "$#" -ne 3 ]; then
@@ -21,10 +21,12 @@ linkerScript=$1
 buildDir=$2
 
 # Name output file
-outFile="$3.axf"
+outAxfFile="$3.axf"
+outBinFile="$3.bin"
 
 COMPILER="arm-none-eabi-gcc"
 LINKER="arm-none-eabi-ld"
+OBJCOPY="arm-none-eabi-objcopy"
 
 # Get list of object files from build directory
 obj="$(find $2 -type f -name *.obj)"
@@ -53,4 +55,7 @@ NC="\033[0m"
 BOLD="\e[1m"
 RESET="\e[0m"
 echo -e ">${GREEN}${BOLD} Calling $LINKER ${NC} ${RESET}"
-$LINKER -T $linkerScript $FLAGS -o $outFile $obj $libsl $libdriver $libfreertos $libm $libc $libgcc
+# Link the object files
+$LINKER -T $linkerScript $FLAGS -o $outAxfFile $obj $libsl $libdriver $libfreertos $libm $libc $libgcc
+# Create a binary file from linked file
+$OBJCOPY -O binary $outAxfFile $outBinFile

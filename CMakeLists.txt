@@ -59,4 +59,4 @@ add_executable(${app} ${app_sources})
 
 # Hack to call the linker
 add_custom_command(TARGET ${app} POST_BUILD COMMAND
-  ${CMAKE_SOURCE_DIR}/buildAxf.sh ${CMAKE_SOURCE_DIR}/linker.ld ${CMAKE_BIN_DIR}. ${app})
+  ${CMAKE_SOURCE_DIR}/linker.sh ${CMAKE_SOURCE_DIR}/linker.ld ${CMAKE_BIN_DIR}. ${app})
