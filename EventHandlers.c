@@ -34,13 +34,11 @@ unsigned long simpleLinkIpAddress(){
 }
 
 
-/*
- * \brief The Function Handles WLAN Events
+/* WLAN Event handler
  *
  * \param[in]  pWlanEvent - Pointer to WLAN Event Info
  *
  * \return None
- *
  */
 void SimpleLinkWlanEventHandler(SlWlanEvent_t *pWlanEvent){
   Report("WLANEventHandler \n");
@@ -49,14 +47,12 @@ void SimpleLinkWlanEventHandler(SlWlanEvent_t *pWlanEvent){
   case SL_WLAN_CONNECT_EVENT:{
       SET_STATUS_BIT(g_ulStatus, STATUS_BIT_CONNECTION);
 
-      //
       // Information about the connected AP (like name, MAC etc) will be
       // available in 'slWlanConnectAsyncResponse_t'-Applications
       // can use it if required
       //
       //  slWlanConnectAsyncResponse_t *pEventData = NULL;
       // pEventData = &pWlanEvent->EventData.STAandP2PModeWlanConnected;
-      //
       //
       break;
     }
@@ -175,16 +171,13 @@ void SimpleLinkNetAppEventHandler(SlNetAppEvent_t *pNetAppEvent){
 }
 
 
-
-/*
- * \brief This function handles HTTP server events
+/*! HTTP server event handler
  *
  * \param[in]  pServerEvent - Contains the relevant event information
  * \param[in]    pServerResponse - Should be filled by the user with the
  *                                      relevant response information
  *
  * \return None
- *
  */
 void SimpleLinkHttpServerCallback(SlHttpServerEvent_t *pHttpEvent,
                                   SlHttpServerResponse_t *pHttpResponse){
@@ -197,52 +190,44 @@ void SimpleLinkHttpServerCallback(SlHttpServerEvent_t *pHttpEvent,
 }
 
 
-/*
- *
- * This function handles socket events indication
+/*! Socket events handler
  *
  * \param[in]      pSock - Pointer to Socket Event Info
  *
  * \return None
- *
  */
 void SimpleLinkSockEventHandler(SlSockEvent_t *pSock){
   Report("SockHandler\r\n");
-  if(!pSock)
-    {
-      return;
-    }
+  if(!pSock){
+    return;
+  }
 
-  //
-  // This application doesn't work w/ socket - Events are not expected
-  //
-  switch( pSock->Event )
-    {
-    case SL_SOCKET_TX_FAILED_EVENT:
-      switch( pSock->socketAsyncEvent.SockTxFailData.status)
-        {
-        case SL_ECLOSE:
+  switch( pSock->Event ){
+    case SL_SOCKET_TX_FAILED_EVENT:{
+      switch( pSock->socketAsyncEvent.SockTxFailData.status){
+        case SL_ECLOSE:{
           Report("[SOCK ERROR] - close socket (%d) operation "
                      "failed to transmit all queued packets\n\n",
                      pSock->socketAsyncEvent.SockTxFailData.sd);
           break;
-        default:
+        }
+        default:{
           Report("[SOCK ERROR] - TX FAILED  :  socket %d , reason "
                  "(%d) \n\n",
                  pSock->socketAsyncEvent.SockTxFailData.sd, pSock->socketAsyncEvent.SockTxFailData.status);
           break;
         }
-      break;
-
-    default:
+      }
+    }
+    default:{
       Report("[SOCK EVENT] - Unexpected Event [%x0x]\n\n",pSock->Event);
       break;
     }
-
+  }
 }
 
 
-/*! This function handles General Events
+/*! General Event handler
  *
  * \param[in]     pDevEvent - Pointer to General Event Info
  *
@@ -254,10 +239,8 @@ void SimpleLinkGeneralEventHandler(SlDeviceEvent_t *pDevEvent){
     return;
   }
 
-  //
   // Most of the general errors are not FATAL are are to be handled
   // appropriately by the application
-  //
   Report("[GENERAL EVENT] - ID=[%d] Sender=[%d]\n\n",
              pDevEvent->EventData.deviceEvent.status,
              pDevEvent->EventData.deviceEvent.sender);
