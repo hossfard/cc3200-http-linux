@@ -15,13 +15,13 @@ Build instructions on Linux systems
    ```bash
    arm-none-eabi-gdb -x $CC3200SDK/tools/gcc_scripts/gdbinit http-serve.axf
    ```
-3. The board will start in AP mode with SSID `LPSystem` (open)
+3. The board will start in AP mode with SSID `Wifi Demo` (open)
 4. Connect to the chip
 5. Send `GET` and `POST` as described below
 
 # API
 
-Server: 192.168.1.1 (`lpsystem.net`)
+Server: 192.168.1.1 (`wifidemo.com`)
 Port: 5001
 
 ## `/led`

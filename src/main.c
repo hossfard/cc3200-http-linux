@@ -177,7 +177,7 @@ void apModeTask(){
   }
 
   // Start AP mode
-  apMode("LPSystems");
+  apMode("Wifi Demo");
 
   // Remove task from scheduler
   OsiTaskHandle ptr = g_apModeTaskHandle;
@@ -475,7 +475,7 @@ long apMode(char *ssid){
 
     ASSERT_ON_ERROR(lRetVal);
 
-    unsigned char str2[] = "lpsystem.net";
+    unsigned char str2[] = "wifidemo.com";
     unsigned char len2 = strlen((const char *)str2);
     sl_NetAppSet(SL_NET_APP_DEVICE_CONFIG_ID, NETAPP_SET_GET_DEV_CONF_OPT_DOMAIN_NAME,
                  len2, (unsigned char*)str2);
