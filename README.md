@@ -1,4 +1,9 @@
-# Summary
+# Synopsis
+
+Minimal REST API demo for TI's CC3200 WiFi chip (on development board)
+with instructions for compiling and debugging on Linux.
+
+# Usage
 
 Build instructions on Linux systems
 
