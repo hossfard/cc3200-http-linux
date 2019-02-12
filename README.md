@@ -7,7 +7,8 @@ with instructions for compiling and debugging on Linux.
 
 Build instructions on Linux systems
 
-1. Setup path to CC3200 SDK as documented in `linux_setup.md`
+1. Setup path to CC3200 SDK as documented in the Linux Setup section
+   below
 2. Build `http-server.axf`
    ```bash
    mkdir build && cd build
@@ -22,9 +23,9 @@ Build instructions on Linux systems
    ```
 3. The board will start in AP mode with SSID `Wifi Demo` (open)
 4. Connect to the chip
-5. Send `GET` and `POST` as described below
+5. Send `GET` and `POST` in the Wifi Demo API section
 
-# API
+# Wifi Demo API
 
 Server: 192.168.1.1 (`wifidemo.com`)
 Port: 5001
@@ -79,3 +80,166 @@ Example response:
 ```
 204 No Content HTTP/1.0
 ```
+
+
+# Linux Setup
+
+## Systems used
+
+I used following systems for compiling and initial development:
+
+- Fedora 24 (4.11.12-100.fc24.x86_64)
+- OpenSUSE Tumbleweed (4.12.8-1-default (4d7933a) x86_64)
+  - installed packages (described below)
+    - `libncurses5-32bit`
+    - `openocd` (dependencies: `libftdi1-2 libhidapi-hidraw0 libjaylink libjaylink0 libjim0_75 libusb-0_1-4 openocd openocd-data libjaylink`)
+    - `libusb-1_0-devel`
+- CC3200SDK v1.3.0
+- gcc-arm-none-eabi 5.4 2016 q3
+
+## Instructions
+
+1. Download CC3200 SDK
+- Download from TI website
+  https://www.ti.com/tool/cc3200sdk
+  verison 1.3.0 was used at the time of this writing
+- Run installer (ran under a Windows machine) and copy the installed
+  directory. All required files are bundled in the installed
+  directory)
+- Copy content to `/path/to/directory/goes/here`. For convenience,
+  assign a variable to this path:
+  `> echo export CC3200SDK=/path/to/directory/goes/here >> ~.bashrc`
+  and reload your `.bashrc`
+  `> . ~/.bashrc`
+
+2. Configure LaunchXL JTAG Debug interface
+- Load `ftdi-sio` module
+ `# modprobe ftdi-sio`
+ `# echo 0451 c32a > /sys/bus/usb-serial/drivers/ftdi_sio/new_id`
+- If running an old kernel, syntax will be different; see references above
+
+3. Build and Install openocd
+- `# yum install libusb-devel`
+  For OpenSUSE
+  `# zypper in libusb-1_0-devel`
+- OpenOCD comes in default OpenSUSE repos:
+  `# zypper in openocd`
+For OpenSUSE go to next step. For Fedora: download openocd, extract, and `cd` into it then
+  `> ./configure`
+  Make sure `configure` reports `MPSSE mode of FTDI based devices yes (auto)`
+  `> make -j 4`
+  `# make install`
+  `# sed -i s/plugdev/YOUR_GROUP_NAME_GOES_HERE/g contrib/60-openocd.rules`
+  `# cp openocd/contrib/60-openocd.rules /etc/udev/rules.d/`
+  (Note: rules do not affect devices that are already plugged
+  in. If the Launchpad was plugged in, unplug and replug it to take effect)
+- Make sure `openocd` runs
+  `> openocd -f $CC3200SDK/tools/gcc_scripts/cc3200.cfg`
+  Press `C-c` to exit
+
+4. Install cross tool chain
+- In Fedora, tool chain is available in the official repos:
+ `# yum install arm-none-eabi arm-none-eabi-newlib arm-none-eabi-gdb`
+ For OpenSUSE, build or download the prebuilt toolchain binaries
+ (https://launchpad.net/gcc-arm-embedded/+download) and put the
+ binaries in path, e.g.
+ `> echo export PATH=$PATH:/opt/gcc-arm-none-eabi-5_4-2016q3/bin/ >> ~.bashrc`
+ and reload `.bashrc`
+- Edit `$CC3200SDK/tools/gcc_scripts/gdbinit` to make sure OpenOCD finds its configuration file:
+`target remote | openocd -c "gdb_port pipe; log_output openocd.log" -f $CC3200SDK/tools/gcc_scripts/cc3200.cfg`
+
+## Flashing
+[cc3200tool](https://github.com/ALLTERCO/cc3200tool) can be used for
+flashing and downloading files. Its README is self-explanatory.
+
+## Compile and Run Examples
+
+### Example 1
+Building `$CC3200SDK/example/blinky`
+
+- Jumpers need to be set correctly, see Figure 1 in the
+ `Getting_Started_Guide.pdf` document
+ `> cd $CC3200SDK/example/blinky/gcc`
+ `> make`
+- Run a GDB session with the built file
+ `> arm-none-eabi-gdb -x $CC3200SDK/tools/gcc_scripts/gdbinit exe/blinky.axf`
+Alternatively, you may consider adding this alias to your `.bashrc`:
+  `> echo alias gdb-cc3200='arm-none-eabi-gdb -x $CC3200SDK/tools/gcc_scripts/gdbinit' >> ~.bashrc`
+  and starting the debugger with
+  `> gdb-cc3200 exe/blinky.axf`
+- Press `c` and `enter` to continue executing the `main` function
+
+### Example 2
+Building `$CC3200SDK/example/getting_started_with_wlan_ap`
+
+This example requires input from the user, which is written to a tty
+
+- Jumpers need to be set correctly, and board must be in AP Mode. See
+  `/docs/example/` documents
+- Build the application
+  `> cd $CC3200SDK/example/getting_started_with_wlan_ap/gcc`
+  `> make`
+  Concatenate USB0 tty (keep it running)
+  `> cat /dev/ttyUSB0`
+
+  This of courses assumes that you have a single `/dev/ttyUSB0`
+  corresponding to the development board.
+
+- Run a GDB session with the built file in a separate terminal
+  `> arm-none-eabi-gdb -x ~/cc3200-sdk/tools/gcc_scripts/gdbinit exe/wlan_ap.axf`
+  and press `c` to continue
+- Open another terminal and send in the SSID when requested:
+  `> echo "this is my ssid" > /dev/ttyUSB0`
+
+Alternatively, instead of `cat`ing the controlling terminal, you can
+use `screen`:
+
+- Get the baudrate of the tty
+ `> stty < /dev/ttyUSB0`
+- Open screen
+ `> screen /dev/ttyUSB0 insert_baudrate_here`
+ and replace `insert_baudrate_here` with the actual baudrate
+
+### Example 3
+Building `$CC3200SDK/example/tcp_socket`
+
+This example shows how to run the `tcp_socket` example with only the tools that come shipped with every distro.
+
+Sending packets
+
+- Overwrite `SSID_NAME`, `SECURITY_TYPE`, and `SECURITY_KEY` in
+  `main.c` with the information from your router
+- Build the application
+  `> cd $CC3200SDK/example/tcp_socket/gcc`
+  `> make`
+- Concatenate USB0 FIFO (keep it running)
+  `> cat /dev/ttyUSB0`
+- Run a GDB session with the built file in a separate terminal
+  `> arm-none-eabi-gdb -x ~/cc3200-sdk/tools/gcc_scripts/gdbinit exe/tcp_socket.axf`
+  and press `c` to continue
+- Follow as in previous example to make selections in prompted
+  options. Make following changes:
+  - Packet size: 10
+
+  This change is made to make the example complete quicker when
+  manually sending packets
+- Navigate the menus and make CC3200 listen for packets
+- Start a telnet connection to the CC3200
+  `> telnet <LOCAL_IP_ADDRESS_OF_CC3200> 5001`
+  and start typing random strings followed by enter. Repeat 10 times.
+
+Receiving packets:
+- Follow as in previous example and make following selections:
+  - Packet size: 10
+  - Destination IP: Local IP address of your computer
+  - Port: 5001
+- Start a server on your local machine
+  `> nc -vl <LOCAL_COMPUTER_IP_ADDRESS> 5001`
+- Navigate the menus on CC3200 and set it to send packets to server
+  (your computer)
+
+
+## Reference
+[1] http://azug.minpet.unibas.ch/~lukas/bricol/ti_simplelink/CC3200-LaunchXL.html
+[2] https://community.particle.io/t/cc3200-network-processor-information-station/5348/59
+[3] https://hackpad.com/Using-the-CC3200-Launchpad-Under-Linux-Rrol11xo7NQ
