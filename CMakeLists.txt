@@ -21,12 +21,12 @@ endif()
 # Source files
 list(
   APPEND app_sources
-  main.c
-  pinmux.c
-  HttpRequest.c
-  Router.c
-  HttpServer.c
-  EventHandlers.c
+  src/main.c
+  src/pinmux.c
+  src/HttpRequest.c
+  src/Router.c
+  src/HttpServer.c
+  src/EventHandlers.c
   jsmn/jsmn.c
   $ENV{CC3200SDK}/example/common/uart_if.c
   $ENV{CC3200SDK}/example/common/gpio_if.c
